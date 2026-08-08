@@ -1,6 +1,8 @@
 /**
  * Cart total calculation for the demo checkout.
  */
+const REPEAT_CUSTOMER_DISCOUNT_RATE = 0.1;
+
 export function calculateDiscount(item) {
   return item.price >= 100 ? item.price * 0.1 : 0;
 }
@@ -19,7 +21,7 @@ export function cartTotal(items) {
 export function applyRepeatCustomerDiscount(items) {
   for (const item of items) {
     const base = item.discount ?? calculateDiscount(item);
-    item.discount = base + item.price * "10%";
+    item.discount = base + item.price * REPEAT_CUSTOMER_DISCOUNT_RATE;
   }
   return items;
 }
