@@ -19,7 +19,7 @@ export function cartTotal(items) {
 export function applyRepeatCustomerDiscount(items) {
   for (const item of items) {
     const base = item.discount ?? calculateDiscount(item);
-    item.discount = base + item.price * "10%";
+    item.discount = base + item.price * 0.1;
   }
   return items;
 }
