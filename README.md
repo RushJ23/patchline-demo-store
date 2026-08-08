@@ -16,3 +16,4 @@ Remove the `?? calculateDiscount(item)` fallback in `cart.js` and deploy — the
 ## Safety setup
 
 `main` is branch-protected: PRs + green CI required, no direct pushes. Devin only gets branch/PR permissions; only the Patchline backend's token can merge.
+
