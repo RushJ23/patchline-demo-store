@@ -116,6 +116,13 @@ const STYLES = `
     font-weight: 600;
   }
   footer { text-align: center; color: #98a2b3; font-size: 12px; margin: 30px 0; }
+  #reset-link {
+    display: inline-block;
+    margin-top: 14px;
+    color: #667085;
+    font-size: 13px;
+    text-decoration: underline;
+  }
 `;
 
 function renderItem(item) {
@@ -169,6 +176,7 @@ function renderCheckout(notice) {
         ${payButton}
       </div>
     </div>
+    <a id="reset-link" href="/reset">Reset demo</a>
   </main>
   <footer>Acme Store — demo checkout monitored by Patchline</footer>
 </body>
