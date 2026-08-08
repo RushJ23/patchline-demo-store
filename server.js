@@ -1,9 +1,9 @@
 import http from "node:http";
-import { cartTotal } from "./cart.js";
+import { cartTotal, applyRepeatCustomerDiscount } from "./cart.js";
 
 const PORT = process.env.PORT ?? 4000;
 
-const CART_ITEMS = [
+const INITIAL_CART_ITEMS = [
   {
     name: "Standing Desk",
     description: "Electric sit-stand desk, walnut top",
@@ -28,6 +28,9 @@ const CART_ITEMS = [
       "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=400&q=60",
   },
 ];
+
+let CART_ITEMS = INITIAL_CART_ITEMS.map((item) => ({ ...item }));
+let paymentCount = 0;
 
 const STYLES = `
   :root { color-scheme: light; }
@@ -95,6 +98,15 @@ const STYLES = `
     transition: background 0.15s ease;
   }
   #pay-button:hover { background: #4338ca; }
+  .notice {
+    color: #12805c;
+    background: #ecfdf3;
+    border: 1px solid #abefc6;
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
   #checkout-error {
     color: #b42318;
     background: #fef3f2;
@@ -121,7 +133,7 @@ function renderItem(item) {
   </div>`;
 }
 
-function renderCheckout() {
+function renderCheckout(notice) {
   let total;
   try {
     total = cartTotal(CART_ITEMS);
@@ -131,7 +143,7 @@ function renderCheckout() {
   const totalIsValid = typeof total === "number" && Number.isFinite(total);
   const totalDisplay = totalIsValid ? `$${total.toFixed(2)}` : String(total);
   const payButton = totalIsValid
-    ? `<button id="pay-button">Pay ${totalDisplay}</button>`
+    ? `<form method="post" action="/pay"><button id="pay-button" type="submit">Pay ${totalDisplay}</button></form>`
     : `<p id="checkout-error">Unable to complete checkout right now.</p>`;
 
   return `<!doctype html>
@@ -149,6 +161,7 @@ function renderCheckout() {
   </header>
   <main>
     <h1>Checkout</h1>
+    ${notice ? `<p class="notice">${notice}</p>` : ""}
     <div class="card">
       ${CART_ITEMS.map(renderItem).join("\n      ")}
       <div class="summary">
@@ -167,6 +180,24 @@ http
     if (req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+    if (req.url === "/reset") {
+      CART_ITEMS = INITIAL_CART_ITEMS.map((item) => ({ ...item }));
+      paymentCount = 0;
+      res.writeHead(302, { Location: "/" });
+      res.end();
+      return;
+    }
+    if (req.url === "/pay" && req.method === "POST") {
+      paymentCount += 1;
+      let notice = "Payment successful. Thanks for your order!";
+      if (paymentCount >= 2) {
+        applyRepeatCustomerDiscount(CART_ITEMS);
+        notice = "Payment successful. Repeat-customer discount applied to your next order!";
+      }
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end(renderCheckout(notice));
       return;
     }
     res.writeHead(200, { "Content-Type": "text/html" });

@@ -11,7 +11,9 @@ npm test     # regression tests (run in CI)
 
 ## Demo: break production
 
-Remove the `?? calculateDiscount(item)` fallback in `cart.js` and deploy — the cart total renders `NaN`, the pay button disappears, and the checkout shows an error. Then fire an incident at the Patchline server (see the Patchline README) and let it repair this repo.
+No deploy needed — press **Pay** twice. The second payment triggers the buggy `applyRepeatCustomerDiscount` in `cart.js` (`item.price * "10%"` is `NaN`), corrupting the cart: the total renders `NaN`, the pay button disappears, and the checkout shows an error. Then fire an incident at the Patchline server (see the Patchline README) and let it repair this repo.
+
+Visit `/reset` to restore the cart between demo runs. (State is in-memory; on serverless hosting it lives per warm instance.)
 
 ## Safety setup
 
