@@ -1,5 +1,10 @@
 import http from "node:http";
 import { cartTotal, applyRepeatCustomerDiscount } from "./cart.js";
+import {
+  getPaymentCount,
+  incrementPaymentCount,
+  resetPaymentCount,
+} from "./state.js";
 
 const PORT = process.env.PORT ?? 4000;
 
@@ -29,8 +34,13 @@ const INITIAL_CART_ITEMS = [
   },
 ];
 
-let CART_ITEMS = INITIAL_CART_ITEMS.map((item) => ({ ...item }));
-let paymentCount = 0;
+function cartItemsFor(paymentCount) {
+  const items = INITIAL_CART_ITEMS.map((item) => ({ ...item }));
+  if (paymentCount >= 2) {
+    applyRepeatCustomerDiscount(items);
+  }
+  return items;
+}
 
 const STYLES = `
   :root { color-scheme: light; }
@@ -140,10 +150,10 @@ function renderItem(item) {
   </div>`;
 }
 
-function renderCheckout(notice) {
+function renderCheckout(items, notice) {
   let total;
   try {
-    total = cartTotal(CART_ITEMS);
+    total = cartTotal(items);
   } catch {
     total = undefined;
   }
@@ -170,7 +180,7 @@ function renderCheckout(notice) {
     <h1>Checkout</h1>
     ${notice ? `<p class="notice">${notice}</p>` : ""}
     <div class="card">
-      ${CART_ITEMS.map(renderItem).join("\n      ")}
+      ${items.map(renderItem).join("\n      ")}
       <div class="summary">
         <p id="cart-total">Total: ${totalDisplay}</p>
         ${payButton}
@@ -183,32 +193,39 @@ function renderCheckout(notice) {
 </html>`;
 }
 
+async function handle(req, res) {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+  if (req.url.startsWith("/reset")) {
+    await resetPaymentCount();
+    res.writeHead(302, { Location: "/" });
+    res.end();
+    return;
+  }
+  if (req.url.startsWith("/pay") && req.method === "POST") {
+    const paymentCount = await incrementPaymentCount();
+    const notice =
+      paymentCount >= 2
+        ? "Payment successful. Repeat-customer discount applied to your next order!"
+        : "Payment successful. Thanks for your order!";
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(renderCheckout(cartItemsFor(paymentCount), notice));
+    return;
+  }
+  const paymentCount = await getPaymentCount();
+  res.writeHead(200, { "Content-Type": "text/html" });
+  res.end(renderCheckout(cartItemsFor(paymentCount)));
+}
+
 http
   .createServer((req, res) => {
-    if (req.url === "/health") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true }));
-      return;
-    }
-    if (req.url === "/reset") {
-      CART_ITEMS = INITIAL_CART_ITEMS.map((item) => ({ ...item }));
-      paymentCount = 0;
-      res.writeHead(302, { Location: "/" });
-      res.end();
-      return;
-    }
-    if (req.url === "/pay" && req.method === "POST") {
-      paymentCount += 1;
-      let notice = "Payment successful. Thanks for your order!";
-      if (paymentCount >= 2) {
-        applyRepeatCustomerDiscount(CART_ITEMS);
-        notice = "Payment successful. Repeat-customer discount applied to your next order!";
-      }
-      res.writeHead(200, { "Content-Type": "text/html" });
-      res.end(renderCheckout(notice));
-      return;
-    }
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(renderCheckout());
+    handle(req, res).catch((err) => {
+      console.error(err);
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Internal error");
+    });
   })
   .listen(PORT, () => console.log(`Demo checkout on :${PORT}`));
