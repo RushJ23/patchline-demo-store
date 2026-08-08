@@ -1,0 +1,11 @@
+{
+  "name": "patchline-demo-store",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Demo checkout app monitored and repaired by Patchline",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}
