@@ -1,50 +1,56 @@
 /**
- * Payment-count state, shared across serverless instances when a Redis REST
- * store is configured (Vercel Marketplace Upstash / Vercel KV env vars).
- * Falls back to in-memory state for local runs.
+ * Payment-count state shared across all serverless instances via a free,
+ * keyless public counter service (abacus.jasoncameron.dev) — no credentials
+ * or store setup required.
+ *
+ * Counters can only be incremented, so reset works via epochs: a "resets"
+ * counter picks which "pays-<epoch>" counter is active; bumping it starts a
+ * fresh payment count at zero.
+ *
+ * Falls back to in-memory state if the counter service is unreachable.
  */
-const REDIS_URL =
-  process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN =
-  process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-
-const KEY = "patchline-demo:payment-count";
+const BASE = "https://abacus.jasoncameron.dev";
+const NAMESPACE = "patchline-demo-store-rushj23";
 
 let memoryCount = 0;
 
-async function redis(...command) {
-  const res = await fetch(REDIS_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${REDIS_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(command),
-  });
+async function counter(action, key) {
+  const res = await fetch(`${BASE}/${action}/${NAMESPACE}/${key}`);
+  if (res.status === 404) return 0;
   if (!res.ok) {
-    throw new Error(`Redis error ${res.status}: ${await res.text()}`);
+    throw new Error(`Counter service error ${res.status}`);
   }
   const body = await res.json();
-  return body.result;
+  return Number(body.value ?? 0);
 }
 
-const hasRedis = Boolean(REDIS_URL && REDIS_TOKEN);
+async function currentEpoch() {
+  return counter("get", "resets");
+}
 
 export async function getPaymentCount() {
-  if (!hasRedis) return memoryCount;
-  const value = await redis("GET", KEY);
-  return value ? Number(value) : 0;
+  try {
+    const epoch = await currentEpoch();
+    return await counter("get", `pays-${epoch}`);
+  } catch {
+    return memoryCount;
+  }
 }
 
 export async function incrementPaymentCount() {
-  if (!hasRedis) return ++memoryCount;
-  return Number(await redis("INCR", KEY));
+  try {
+    const epoch = await currentEpoch();
+    return await counter("hit", `pays-${epoch}`);
+  } catch {
+    return ++memoryCount;
+  }
 }
 
 export async function resetPaymentCount() {
-  if (!hasRedis) {
-    memoryCount = 0;
-    return;
+  memoryCount = 0;
+  try {
+    await counter("hit", "resets");
+  } catch {
+    // in-memory fallback already reset
   }
-  await redis("SET", KEY, "0");
 }
